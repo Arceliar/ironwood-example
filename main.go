@@ -49,15 +49,8 @@ func main() {
 		// read/write between tun/tap and packetconn
 		go tunReader(tun, pc)
 		go tunWriter(tun, pc)
+		go tunWriterUndeliverable(tun, pc)
 	}
-	go func() {
-		dummy := make([]byte, 2048)
-		for {
-			if _, _, err := pc.ReadFrom(dummy); err != nil {
-				return // connection closed
-			}
-		}
-	}()
 	// listen for TCP, pass connections to packetConn.HandleConn
 	go listenTCP(pc)
 	sigs := make(chan os.Signal, 1)

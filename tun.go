@@ -3,8 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/ed25519"
-	"fmt"
-	"net"
 	"sync"
 	"time"
 
@@ -96,7 +94,6 @@ func tunWriterUndeliverable(dev tun.Device, pc *iw.PacketConn) {
 		buf := rawBuf
 		// We don't use full keys, so ReadUnderliverable instead of ReadFrom and check local
 		n, local, remote, err := pc.ReadUndeliverable(buf[tunOffsetBytes:])
-		fmt.Println("DEBUG tunWriterUndeliverable", net.IP(addrBytes).String())
 		if err != nil {
 			panic(err)
 		}
@@ -146,7 +143,6 @@ func tunWriter(dev tun.Device, pc *iw.PacketConn) {
 		buf := rawBuf
 		// We don't use full keys, so ReadUnderliverable instead of ReadFrom and check local
 		n, remote, err := pc.ReadFrom(buf[tunOffsetBytes:])
-		fmt.Println("DEBUG tunWriter", net.IP(addrBytes).String())
 		if err != nil {
 			panic(err)
 		}

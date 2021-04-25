@@ -14,7 +14,7 @@ import (
 	"golang.org/x/net/ipv6"
 	"golang.org/x/sys/unix"
 
-	iw "github.com/Arceliar/ironwood/net"
+	iw "github.com/Arceliar/ironwood"
 )
 
 const listenAddrString = ":12345"

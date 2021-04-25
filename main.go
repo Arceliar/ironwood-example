@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	iw "github.com/Arceliar/ironwood/net"
+	iw "github.com/Arceliar/ironwood"
 
 	"log"
 	"net/http"

@@ -9,7 +9,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/tun"
 
-	iw "github.com/Arceliar/ironwood/net"
+	iw "github.com/Arceliar/ironwood"
 )
 
 func setupTun(ifname, address string) tun.Device {

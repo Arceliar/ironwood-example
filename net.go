@@ -79,7 +79,7 @@ func mcSender(mc *ipv6.PacketConn, key ed25519.PublicKey) {
 			break
 		}
 	}
-	time.AfterFunc(time.Second, func() { mcSender(mc, key) })
+	time.AfterFunc(3*time.Second, func() { mcSender(mc, key) })
 }
 
 func mcListener(mc *ipv6.PacketConn, key ed25519.PublicKey, pc *iw.PacketConn) {

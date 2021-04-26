@@ -34,19 +34,13 @@ func init() {
 func main() {
 	flag.Parse()
 	_, key, _ := ed25519.GenerateKey(nil)
-	pc, _ := iwn.NewPacketConn(key)
-	defer pc.Close()
-	var tpc net.PacketConn = pc
+	var pc iwt.PacketConn
 	if *sign {
-		// Wrap conn as signed
-		addrToPub := func(addr net.Addr) ed25519.PublicKey {
-			return ed25519.PublicKey(addr.(iwt.Addr))
-		}
-		pubToAddr := func(pub ed25519.PublicKey) net.Addr {
-			return iwt.Addr(pub)
-		}
-		tpc, _ = iws.WrapPacketConn(pc, key, pubToAddr, addrToPub)
+		pc, _ = iws.NewPacketConn(key)
+	} else {
+		pc, _ = iwn.NewPacketConn(key)
 	}
+	defer pc.Close()
 	// get address and pc.SetRecvCheck
 	localAddr := pc.LocalAddr()
 	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
@@ -62,8 +56,8 @@ func main() {
 	if ifname != nil && *ifname != "none" {
 		tun := setupTun(*ifname, ip.String()+"/8")
 		// read/write between tun/tap and packetconn
-		go tunReader(tun, tpc)
-		go tunWriter(tun, tpc)
+		go tunReader(tun, pc)
+		go tunWriter(tun, pc)
 	}
 	// open multicast and start adding peers
 	mc := newMulticastConn()

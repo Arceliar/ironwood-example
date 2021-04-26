@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"flag"
 	"fmt"
@@ -32,16 +33,16 @@ func main() {
 	_, key, _ := ed25519.GenerateKey(nil)
 	pc, _ := iw.NewPacketConn(key)
 	defer pc.Close()
+	// get address and pc.SetRecvCheck
 	localAddr := pc.LocalAddr()
 	pubKey := *(*ed25519.PublicKey)(localAddr.(*iw.Addr))
-	// open multicast and start adding peers
-	mc := newMulticastConn()
-	go mcSender(mc, pubKey)
-	go mcListener(mc, pubKey, pc)
-	// open tun/tap and assign address
 	addrBytes := make([]byte, 16)
 	addrBytes[0] = 0xfd
 	copy(addrBytes[1:], pubKey)
+	pc.SetRecvCheck(func(key ed25519.PublicKey) bool {
+		return bytes.Equal(addrBytes[1:], key[:len(addrBytes)-1])
+	})
+	// open tun/tap and assign address
 	ip := net.IP(addrBytes)
 	fmt.Println("Our IP address is", ip.String())
 	if ifname != nil && *ifname != "none" {
@@ -49,8 +50,11 @@ func main() {
 		// read/write between tun/tap and packetconn
 		go tunReader(tun, pc)
 		go tunWriter(tun, pc)
-		go tunWriterUndeliverable(tun, pc)
 	}
+	// open multicast and start adding peers
+	mc := newMulticastConn()
+	go mcSender(mc, pubKey)
+	go mcListener(mc, pubKey, pc)
 	// listen for TCP, pass connections to packetConn.HandleConn
 	go listenTCP(pc)
 	sigs := make(chan os.Signal, 1)

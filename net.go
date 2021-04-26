@@ -14,7 +14,7 @@ import (
 	"golang.org/x/net/ipv6"
 	"golang.org/x/sys/unix"
 
-	iw "github.com/Arceliar/ironwood/network"
+	iwn "github.com/Arceliar/ironwood/network"
 	iwt "github.com/Arceliar/ironwood/types"
 )
 
@@ -83,7 +83,7 @@ func mcSender(mc *ipv6.PacketConn, key ed25519.PublicKey) {
 	time.AfterFunc(3*time.Second, func() { mcSender(mc, key) })
 }
 
-func mcListener(mc *ipv6.PacketConn, key ed25519.PublicKey, pc *iw.PacketConn) {
+func mcListener(mc *ipv6.PacketConn, key ed25519.PublicKey, pc *iwn.PacketConn) {
 	for {
 		bs := make([]byte, 2048)
 		n, _, from, err := mc.ReadFrom(bs)
@@ -121,7 +121,7 @@ func mcListener(mc *ipv6.PacketConn, key ed25519.PublicKey, pc *iw.PacketConn) {
 	}
 }
 
-func handleTCP(pc *iw.PacketConn, conn net.Conn) {
+func handleTCP(pc *iwn.PacketConn, conn net.Conn) {
 	defer conn.Close()
 	localAddr := pc.LocalAddr()
 	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
@@ -158,7 +158,7 @@ func handleTCP(pc *iw.PacketConn, conn net.Conn) {
 	delete(connections, destKeyString)
 }
 
-func listenTCP(pc *iw.PacketConn) {
+func listenTCP(pc *iwn.PacketConn) {
 	listener, err := net.Listen("tcp", listenAddrString)
 	if err != nil {
 		panic(err)

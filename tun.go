@@ -3,13 +3,13 @@ package main
 import (
 	"bytes"
 	"crypto/ed25519"
+	"net"
 	"sync"
 	"time"
 
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/tun"
 
-	iw "github.com/Arceliar/ironwood/network"
 	iwt "github.com/Arceliar/ironwood/types"
 )
 
@@ -41,7 +41,7 @@ func setupTun(ifname, address string) tun.Device {
 
 const tunOffsetBytes = 4
 
-func tunReader(dev tun.Device, pc *iw.PacketConn) {
+func tunReader(dev tun.Device, pc net.PacketConn) {
 	localAddr := pc.LocalAddr()
 	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
 	addrBytes := make([]byte, 16)
@@ -83,7 +83,7 @@ func tunReader(dev tun.Device, pc *iw.PacketConn) {
 	}
 }
 
-func tunWriter(dev tun.Device, pc *iw.PacketConn) {
+func tunWriter(dev tun.Device, pc net.PacketConn) {
 	localAddr := pc.LocalAddr()
 	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
 	addrBytes := make([]byte, 16)

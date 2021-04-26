@@ -10,7 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	iw "github.com/Arceliar/ironwood/network"
+	iwn "github.com/Arceliar/ironwood/network"
+	iws "github.com/Arceliar/ironwood/signed"
 	iwt "github.com/Arceliar/ironwood/types"
 
 	"log"
@@ -20,6 +21,7 @@ import (
 
 var ifname = flag.String("ifname", "\000", "interface name to bind to")
 var pprof = flag.String("pprof", "", "listen to pprof on this port")
+var sign = flag.Bool("sign", false, "sign traffic (must be enabled on all nodes)")
 
 func init() {
 	if pprof != nil && *pprof != "" {
@@ -32,8 +34,19 @@ func init() {
 func main() {
 	flag.Parse()
 	_, key, _ := ed25519.GenerateKey(nil)
-	pc, _ := iw.NewPacketConn(key)
+	pc, _ := iwn.NewPacketConn(key)
 	defer pc.Close()
+	var tpc net.PacketConn = pc
+	if *sign {
+		// Wrap conn as signed
+		addrToPub := func(addr net.Addr) ed25519.PublicKey {
+			return ed25519.PublicKey(addr.(iwt.Addr))
+		}
+		pubToAddr := func(pub ed25519.PublicKey) net.Addr {
+			return iwt.Addr(pub)
+		}
+		tpc, _ = iws.WrapPacketConn(pc, key, pubToAddr, addrToPub)
+	}
 	// get address and pc.SetRecvCheck
 	localAddr := pc.LocalAddr()
 	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
@@ -49,8 +62,8 @@ func main() {
 	if ifname != nil && *ifname != "none" {
 		tun := setupTun(*ifname, ip.String()+"/8")
 		// read/write between tun/tap and packetconn
-		go tunReader(tun, pc)
-		go tunWriter(tun, pc)
+		go tunReader(tun, tpc)
+		go tunWriter(tun, tpc)
 	}
 	// open multicast and start adding peers
 	mc := newMulticastConn()

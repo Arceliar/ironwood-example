@@ -14,7 +14,8 @@ import (
 	"golang.org/x/net/ipv6"
 	"golang.org/x/sys/unix"
 
-	iw "github.com/Arceliar/ironwood"
+	iw "github.com/Arceliar/ironwood/network"
+	iwt "github.com/Arceliar/ironwood/types"
 )
 
 const listenAddrString = ":12345"
@@ -97,7 +98,7 @@ func mcListener(mc *ipv6.PacketConn, key ed25519.PublicKey, pc *iw.PacketConn) {
 		}
 		go func() {
 			destKey := ed25519.PublicKey(bs[:n])
-			destKeyString := (*iw.Addr)(&destKey).String()
+			destKeyString := iwt.Addr(destKey).String()
 			tcpAddr := new(net.TCPAddr)
 			uAddr := from.(*net.UDPAddr)
 			tcpAddr.IP = uAddr.IP
@@ -123,7 +124,7 @@ func mcListener(mc *ipv6.PacketConn, key ed25519.PublicKey, pc *iw.PacketConn) {
 func handleTCP(pc *iw.PacketConn, conn net.Conn) {
 	defer conn.Close()
 	localAddr := pc.LocalAddr()
-	pubKey := *(*ed25519.PublicKey)(localAddr.(*iw.Addr))
+	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
 	if _, err := conn.Write(pubKey); err != nil {
 		fmt.Println("Error writing our key:", err)
 		return
@@ -134,7 +135,7 @@ func handleTCP(pc *iw.PacketConn, conn net.Conn) {
 		fmt.Println("Error reading remote key:", err)
 		return
 	}
-	destKeyString := (*iw.Addr)(&there).String() // TODO? check this against key from UDP announcement
+	destKeyString := iwt.Addr(there).String() // TODO? check this against key from UDP announcement
 	connectionsMutex.Lock()
 	if _, isIn := connections[destKeyString]; isIn {
 		connectionsMutex.Unlock()

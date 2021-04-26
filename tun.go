@@ -9,7 +9,8 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/tun"
 
-	iw "github.com/Arceliar/ironwood"
+	iw "github.com/Arceliar/ironwood/network"
+	iwt "github.com/Arceliar/ironwood/types"
 )
 
 func setupTun(ifname, address string) tun.Device {
@@ -42,7 +43,7 @@ const tunOffsetBytes = 4
 
 func tunReader(dev tun.Device, pc *iw.PacketConn) {
 	localAddr := pc.LocalAddr()
-	pubKey := *(*ed25519.PublicKey)(localAddr.(*iw.Addr))
+	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
 	addrBytes := make([]byte, 16)
 	addrBytes[0] = 0xfd
 	copy(addrBytes[1:], pubKey)
@@ -71,7 +72,7 @@ func tunReader(dev tun.Device, pc *iw.PacketConn) {
 			continue
 		}
 		destKey := getKey(dstAddr)
-		dest := (*iw.Addr)(&destKey)
+		dest := iwt.Addr(destKey)
 		n, err = pc.WriteTo(bs, dest)
 		if err != nil {
 			panic(err)
@@ -84,7 +85,7 @@ func tunReader(dev tun.Device, pc *iw.PacketConn) {
 
 func tunWriter(dev tun.Device, pc *iw.PacketConn) {
 	localAddr := pc.LocalAddr()
-	pubKey := *(*ed25519.PublicKey)(localAddr.(*iw.Addr))
+	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
 	addrBytes := make([]byte, 16)
 	addrBytes[0] = 0xfd
 	copy(addrBytes[1:], pubKey)
@@ -115,7 +116,7 @@ func tunWriter(dev tun.Device, pc *iw.PacketConn) {
 			//panic("wrong dest addr")
 			continue
 		}
-		remoteKey := *(*ed25519.PublicKey)(remote.(*iw.Addr))
+		remoteKey := ed25519.PublicKey(remote.(iwt.Addr))
 		if !checkKey(srcAddr, remoteKey) {
 			continue
 		}

@@ -10,7 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	iw "github.com/Arceliar/ironwood"
+	iw "github.com/Arceliar/ironwood/network"
+	iwt "github.com/Arceliar/ironwood/types"
 
 	"log"
 	"net/http"
@@ -35,7 +36,7 @@ func main() {
 	defer pc.Close()
 	// get address and pc.SetRecvCheck
 	localAddr := pc.LocalAddr()
-	pubKey := *(*ed25519.PublicKey)(localAddr.(*iw.Addr))
+	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
 	addrBytes := make([]byte, 16)
 	addrBytes[0] = 0xfd
 	copy(addrBytes[1:], pubKey)

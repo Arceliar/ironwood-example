@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/ed25519"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -41,12 +42,10 @@ func setupTun(ifname, address string) tun.Device {
 
 const tunOffsetBytes = 4
 
-func tunReader(dev tun.Device, pc net.PacketConn) {
+func tunReader(dev tun.Device, pc iwt.PacketConn) {
 	localAddr := pc.LocalAddr()
 	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
-	addrBytes := make([]byte, 16)
-	addrBytes[0] = 0xfd
-	copy(addrBytes[1:], pubKey)
+	addrBytes := getAddr(pubKey)
 	buf := make([]byte, 2048)
 	for {
 		n, err := dev.Read(buf, tunOffsetBytes)
@@ -60,10 +59,10 @@ func tunReader(dev tun.Device, pc net.PacketConn) {
 		if len(bs) < 40 {
 			panic("undersized packet")
 		}
-		// TODO read packet contents, pass to pc
-		srcAddr := bs[8:24]
-		dstAddr := bs[24:40]
-		if !bytes.Equal(srcAddr, addrBytes) {
+		var srcAddr, dstAddr [16]byte
+		copy(srcAddr[:], bs[8:24])
+		copy(dstAddr[:], bs[24:40])
+		if srcAddr != addrBytes {
 			//panic("wrong source address")
 			continue
 		}
@@ -71,14 +70,20 @@ func tunReader(dev tun.Device, pc net.PacketConn) {
 			//panic("wrong dest subnet")
 			continue
 		}
-		destKey := getKey(dstAddr)
-		dest := iwt.Addr(destKey)
-		n, err = pc.WriteTo(bs, dest)
-		if err != nil {
-			panic(err)
-		}
-		if n != len(bs) {
-			panic("failed to write full packet to packetconn")
+		destKey, isGood := getKey(dstAddr)
+		if isGood {
+			dest := iwt.Addr(destKey)
+			n, err = pc.WriteTo(bs, dest)
+			if err != nil {
+				panic(err)
+			}
+			if n != len(bs) {
+				panic("failed to write full packet to packetconn")
+			}
+		} else {
+			pushBufMsg(dstAddr, append([]byte(nil), bs...))
+			req := []byte{oobKeyReq} // TODO something useful, e.g. sign
+			pc.SendOutOfBand(destKey, req)
 		}
 	}
 }
@@ -86,13 +91,10 @@ func tunReader(dev tun.Device, pc net.PacketConn) {
 func tunWriter(dev tun.Device, pc net.PacketConn) {
 	localAddr := pc.LocalAddr()
 	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
-	addrBytes := make([]byte, 16)
-	addrBytes[0] = 0xfd
-	copy(addrBytes[1:], pubKey)
+	addrBytes := getAddr(pubKey)
 	rawBuf := make([]byte, 2048)
 	for {
 		buf := rawBuf
-		// We don't use full keys, so ReadUnderliverable instead of ReadFrom and check local
 		n, remote, err := pc.ReadFrom(buf[tunOffsetBytes:])
 		if err != nil {
 			panic(err)
@@ -102,25 +104,27 @@ func tunWriter(dev tun.Device, pc net.PacketConn) {
 		}
 		buf = buf[:tunOffsetBytes+n]
 		bs := buf[tunOffsetBytes : tunOffsetBytes+n]
-		srcAddr := bs[8:24]
-		dstAddr := bs[24:40]
+		var srcAddr, dstAddr [16]byte
+		copy(srcAddr[:], bs[8:24])
+		copy(dstAddr[:], bs[24:40])
 		if srcAddr[0] != 0xfd {
-			//panic("wrong source subnet")
+			fmt.Println(net.IP(srcAddr[:]).String()) // FIXME
+			panic("wrong source subnet")
 			continue
 		}
 		if dstAddr[0] != 0xfd {
-			//panic("wrong dest subnet")
+			panic("wrong dest subnet")
 			continue
 		}
-		if !bytes.Equal(dstAddr, addrBytes) {
-			//panic("wrong dest addr")
+		if dstAddr != addrBytes {
+			panic("wrong dest addr")
 			continue
 		}
 		remoteKey := ed25519.PublicKey(remote.(iwt.Addr))
 		if !checkKey(srcAddr, remoteKey) {
 			continue
 		}
-		putKey(srcAddr, remoteKey)
+		putKey(remoteKey)
 		n, err = dev.Write(buf, tunOffsetBytes)
 		if err != nil {
 			panic(err)
@@ -132,47 +136,123 @@ func tunWriter(dev tun.Device, pc net.PacketConn) {
 }
 
 var keyMutex sync.Mutex
-var keyMap map[string]*keyInfo
+var keyMap map[[16]byte]*keyInfo
 
 type keyInfo struct {
 	key   ed25519.PublicKey
 	timer *time.Timer
 }
 
-func putKey(addr []byte, key ed25519.PublicKey) {
-	strAddr := string(addr)
+func putKey(key ed25519.PublicKey) {
+	addr := getAddr(key)
 	info := new(keyInfo)
-	info.key = ed25519.PublicKey(make([]byte, ed25519.PublicKeySize))
-	copy(info.key, key)
+	info.key = ed25519.PublicKey(append([]byte(nil), key...))
 	info.timer = time.AfterFunc(time.Minute, func() {
 		keyMutex.Lock()
 		defer keyMutex.Unlock()
-		delete(keyMap, strAddr)
+		delete(keyMap, addr)
 	})
 	keyMutex.Lock()
 	defer keyMutex.Unlock()
 	if keyMap == nil {
-		keyMap = make(map[string]*keyInfo)
+		keyMap = make(map[[16]byte]*keyInfo)
 	}
-	if old, isIn := keyMap[string(addr)]; isIn {
+	if old, isIn := keyMap[addr]; isIn {
 		old.timer.Stop()
 	}
-	keyMap[strAddr] = info
+	keyMap[addr] = info
 }
 
-func getKey(addr []byte) ed25519.PublicKey {
+func getKey(addr [16]byte) (ed25519.PublicKey, bool) {
 	keyMutex.Lock()
-	info := keyMap[string(addr)]
+	info := keyMap[addr]
 	keyMutex.Unlock()
 	if info != nil {
 		//fmt.Println("Found key", net.IP(addr).String(), info.key)
-		return info.key
+		return info.key, true
 	}
 	destKey := ed25519.PublicKey(make([]byte, ed25519.PublicKeySize))
 	copy(destKey, addr[1:])
-	return destKey
+	for idx := range destKey {
+		destKey[idx] = ^destKey[idx]
+	}
+	return destKey, false
 }
 
-func checkKey(addr []byte, key ed25519.PublicKey) bool {
-	return bytes.Equal(addr[1:], key[:len(addr)-1])
+func checkKey(addr [16]byte, key ed25519.PublicKey) bool {
+	tmp := addr
+	for idx := range tmp {
+		tmp[idx] = ^tmp[idx]
+	}
+	return bytes.Equal(tmp[1:], key[:len(addr)-1])
+}
+
+func getAddr(key ed25519.PublicKey) (addr [16]byte) {
+	copy(addr[1:], key)
+	for idx := range addr {
+		addr[idx] = ^addr[idx]
+	}
+	addr[0] = 0xfd
+	return
+}
+
+// Buffer traffic while waiting for a key
+
+var bufMutex sync.Mutex
+var bufMap map[[16]byte]*bufInfo
+
+type bufInfo struct {
+	msg   []byte
+	timer *time.Timer
+}
+
+func pushBufMsg(addr [16]byte, msg []byte) {
+	info := new(bufInfo)
+	info.msg = append(info.msg, msg...)
+	bufMutex.Lock()
+	defer bufMutex.Unlock()
+	if bufMap == nil {
+		bufMap = make(map[[16]byte]*bufInfo)
+	}
+	old := bufMap[addr]
+	bufMap[addr] = info
+	info.timer = time.AfterFunc(time.Minute, func() {
+		bufMutex.Lock()
+		defer bufMutex.Unlock()
+		if n := bufMap[addr]; n == info {
+			delete(bufMap, addr)
+		}
+	})
+	if old != nil {
+		old.timer.Stop()
+	}
+}
+
+func popBufMsg(addr [16]byte) []byte {
+	bufMutex.Lock()
+	defer bufMutex.Unlock()
+	if info := bufMap[addr]; info != nil {
+		info.timer.Stop()
+		return info.msg
+	}
+	return nil
+}
+
+const (
+	oobKeyReq = 1
+	oobKeyRes = 2
+)
+
+func flushBuffer(pc net.PacketConn, destKey ed25519.PublicKey) {
+	addr := getAddr(destKey)
+	if bs := popBufMsg(addr); bs != nil {
+		dest := iwt.Addr(destKey)
+		n, err := pc.WriteTo(bs, dest)
+		if err != nil {
+			panic(err)
+		}
+		if n != len(bs) {
+			panic("failed to write full packet to packetconn")
+		}
+	}
 }

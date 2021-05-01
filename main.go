@@ -24,16 +24,13 @@ var pprof = flag.String("pprof", "", "listen to pprof on this port")
 var enc = flag.Bool("enc", false, "encrypt traffic (must be enabled on all nodes)")
 var sign = flag.Bool("sign", false, "sign traffic (must be enabled on all nodes)")
 
-func init() {
+func main() {
+	flag.Parse()
 	if pprof != nil && *pprof != "" {
 		go func() {
 			log.Println(http.ListenAndServe(*pprof, nil))
 		}()
 	}
-}
-
-func main() {
-	flag.Parse()
 	_, key, _ := ed25519.GenerateKey(nil)
 	var pc iwt.PacketConn
 	if *enc && *sign {

@@ -145,6 +145,9 @@ func handleTCP(pc iwt.PacketConn, conn net.Conn) {
 	addrBytes := make([]byte, 16)
 	addrBytes[0] = 0xfd
 	copy(addrBytes[1:], there)
+	for idx := 1; idx < len(addrBytes); idx++ {
+		addrBytes[idx] = ^addrBytes[idx]
+	}
 	ip := net.IP(addrBytes)
 	fmt.Println("Connected to", ip.String())
 	if err := pc.HandleConn(there, conn); err != nil {

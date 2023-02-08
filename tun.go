@@ -70,7 +70,12 @@ func tunReader(dev tun.Device, pc iwt.PacketConn) {
 			//panic("wrong dest subnet")
 			continue
 		}
-		destKey, isGood := getKey(dstAddr)
+		//destKey, isGood := getKey(dstAddr)
+		destKey, isGood := getTargetKey(dstAddr)
+		destKey = pc.GetKeyFor(destKey)
+		if !checkKey(dstAddr, destKey) {
+			continue
+		}
 		if isGood {
 			dest := iwt.Addr(destKey)
 			n, err = pc.WriteTo(bs, dest)
@@ -161,6 +166,15 @@ func putKey(key ed25519.PublicKey) {
 		old.timer.Stop()
 	}
 	keyMap[addr] = info
+}
+
+func getTargetKey(addr [16]byte) (ed25519.PublicKey, bool) {
+	destKey := ed25519.PublicKey(make([]byte, ed25519.PublicKeySize))
+	copy(destKey, addr[1:])
+	for idx := range destKey {
+		destKey[idx] = ^destKey[idx]
+	}
+	return destKey, true
 }
 
 func getKey(addr [16]byte) (ed25519.PublicKey, bool) {

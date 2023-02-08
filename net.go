@@ -115,6 +115,7 @@ func mcListener(mc *ipv6.PacketConn, key ed25519.PublicKey, pc iwt.PacketConn) {
 				//panic(err)
 				return
 			}
+			conn.(*net.TCPConn).SetKeepAlive(true)
 			handleTCP(pc, conn)
 		}()
 	}

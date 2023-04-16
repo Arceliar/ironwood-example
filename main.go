@@ -38,7 +38,7 @@ func main() {
 	doNotify1 := func(key ed25519.PublicKey) {
 		doNotify2(key)
 	}
-	opts = append(opts, iwn.WithPathTransform(transformKey))
+	opts = append(opts, iwn.WithBloomTransform(transformKey))
 	opts = append(opts, iwn.WithPathNotify(doNotify1))
 	if *enc && *sign {
 		panic("TODO a useful error message (can't use both -unenc and -sign)")

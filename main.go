@@ -33,39 +33,31 @@ func main() {
 	}
 	_, key, _ := ed25519.GenerateKey(nil)
 	var pc iwt.PacketConn
+	var opts []iwn.Option
+  var doNotify2 func(key ed25519.PublicKey)
+	doNotify1 := func(key ed25519.PublicKey) {
+    doNotify2(key)
+	}
+	opts = append(opts, iwn.WithPathTransform(transformKey))
+	opts = append(opts, iwn.WithPathNotify(doNotify1))
 	if *enc && *sign {
 		panic("TODO a useful error message (can't use both -unenc and -sign)")
 	} else if *enc {
-		pc, _ = iwc.NewPacketConn(key)
+		pc, _ = iwc.NewPacketConn(key, opts...)
 	} else if *sign {
-		pc, _ = iws.NewPacketConn(key)
+		pc, _ = iws.NewPacketConn(key, opts...)
 	} else {
-		pc, _ = iwn.NewPacketConn(key)
+		pc, _ = iwn.NewPacketConn(key, opts...)
 	}
 	defer pc.Close()
+	doNotify2 = func(key ed25519.PublicKey) {
+    putKey(key)
+    flushBuffer(pc, key) // Ugly hack, we need the pc for flushBuffer to work
+	}
 	// get address and pc.SetOutOfBandHandler
 	localAddr := pc.LocalAddr()
 	pubKey := ed25519.PublicKey(localAddr.(iwt.Addr))
 	addrBytes := getAddr(pubKey)
-	pc.SetOutOfBandHandler(func(from, to ed25519.PublicKey, data []byte) {
-		if checkKey(addrBytes, to) {
-			if len(data) < 1 {
-				panic("DEBUG")
-				return
-			}
-			switch data[0] {
-			case oobKeyReq:
-				res := []byte{oobKeyRes}    // TODO something useful, e.g. sign
-				pc.SendOutOfBand(from, res) // TODO don't block
-			case oobKeyRes:
-				putKey(from)
-				flushBuffer(pc, from)
-			default:
-				panic("DEBUG")
-				return
-			}
-		}
-	})
 	// open tun/tap and assign address
 	ip := net.IP(addrBytes[:])
 	fmt.Println("Our IP address is", ip.String())

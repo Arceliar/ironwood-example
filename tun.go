@@ -70,9 +70,15 @@ func tunReader(dev tun.Device, pc iwt.PacketConn) {
 			//panic("wrong dest subnet")
 			continue
 		}
-		//destKey, isGood := getKey(dstAddr)
-		destKey, isGood := getTargetKey(dstAddr)
-		destKey = pc.GetKeyFor(destKey)
+		destKey, isGood := getKey(dstAddr)
+		//destKey, isGood := getTargetKey(dstAddr)
+		if !isGood {
+		  destKey, _ := getTargetKey(dstAddr)
+		  pc.SendLookup(destKey)
+		  pushBufMsg(dstAddr, bs)
+      continue
+		}
+		//destKey = pc.GetKeyFor(destKey)
 		if !checkKey(dstAddr, destKey) {
 			continue
 		}
@@ -85,10 +91,6 @@ func tunReader(dev tun.Device, pc iwt.PacketConn) {
 			if n != len(bs) {
 				panic("failed to write full packet to packetconn")
 			}
-		} else {
-			pushBufMsg(dstAddr, append([]byte(nil), bs...))
-			req := []byte{oobKeyReq} // TODO something useful, e.g. sign
-			pc.SendOutOfBand(destKey, req)
 		}
 	}
 }
@@ -208,6 +210,12 @@ func getAddr(key ed25519.PublicKey) (addr [16]byte) {
 	}
 	addr[0] = 0xfd
 	return
+}
+
+func transformKey(key ed25519.PublicKey) ed25519.PublicKey {
+  addr := getAddr(key)
+  xform, _ := getTargetKey(addr)
+  return xform
 }
 
 // Buffer traffic while waiting for a key

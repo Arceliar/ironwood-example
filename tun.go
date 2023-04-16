@@ -73,10 +73,10 @@ func tunReader(dev tun.Device, pc iwt.PacketConn) {
 		destKey, isGood := getKey(dstAddr)
 		//destKey, isGood := getTargetKey(dstAddr)
 		if !isGood {
-		  destKey, _ := getTargetKey(dstAddr)
-		  pc.SendLookup(destKey)
-		  pushBufMsg(dstAddr, bs)
-      continue
+			destKey, _ := getTargetKey(dstAddr)
+			pc.SendLookup(destKey)
+			pushBufMsg(dstAddr, bs)
+			continue
 		}
 		//destKey = pc.GetKeyFor(destKey)
 		if !checkKey(dstAddr, destKey) {
@@ -131,7 +131,7 @@ func tunWriter(dev tun.Device, pc net.PacketConn) {
 		if !checkKey(srcAddr, remoteKey) {
 			continue
 		}
-		putKey(remoteKey)
+		//putKey(remoteKey)
 		n, err = dev.Write(buf, tunOffsetBytes)
 		if err != nil {
 			panic(err)
@@ -213,9 +213,9 @@ func getAddr(key ed25519.PublicKey) (addr [16]byte) {
 }
 
 func transformKey(key ed25519.PublicKey) ed25519.PublicKey {
-  addr := getAddr(key)
-  xform, _ := getTargetKey(addr)
-  return xform
+	addr := getAddr(key)
+	xform, _ := getTargetKey(addr)
+	return xform
 }
 
 // Buffer traffic while waiting for a key

@@ -34,9 +34,9 @@ func main() {
 	_, key, _ := ed25519.GenerateKey(nil)
 	var pc iwt.PacketConn
 	var opts []iwn.Option
-  var doNotify2 func(key ed25519.PublicKey)
+	var doNotify2 func(key ed25519.PublicKey)
 	doNotify1 := func(key ed25519.PublicKey) {
-    doNotify2(key)
+		doNotify2(key)
 	}
 	opts = append(opts, iwn.WithPathTransform(transformKey))
 	opts = append(opts, iwn.WithPathNotify(doNotify1))
@@ -51,8 +51,8 @@ func main() {
 	}
 	defer pc.Close()
 	doNotify2 = func(key ed25519.PublicKey) {
-    putKey(key)
-    flushBuffer(pc, key) // Ugly hack, we need the pc for flushBuffer to work
+		putKey(key)
+		flushBuffer(pc, key) // Ugly hack, we need the pc for flushBuffer to work
 	}
 	// get address and pc.SetOutOfBandHandler
 	localAddr := pc.LocalAddr()
